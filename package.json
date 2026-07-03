@@ -1,0 +1,44 @@
+{
+  "name": "slackagent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Slack feedback triage agent: persona debate + judge + human-in-the-loop actions via MCP.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/slack/app.ts",
+    "local": "tsx local/run-orchestrator.ts",
+    "seed": "tsx seed/seed.ts",
+    "teardown": "tsx seed/teardown.ts",
+    "seed:slack": "tsx seed/slack/seed.ts",
+    "reset:slack": "tsx seed/slack/reset.ts",
+    "build:lambda": "node scripts/build-lambda.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --ext .ts",
+    "format": "prettier --write \"**/*.{ts,json,md}\""
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.658.0",
+    "@aws-sdk/client-dynamodb": "^3.1079.0",
+    "@aws-sdk/client-lambda": "^3.1079.0",
+    "@aws-sdk/lib-dynamodb": "^3.1079.0",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "@slack/bolt": "^3.22.0",
+    "@slack/web-api": "^6.13.0",
+    "dotenv": "^16.4.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@typescript-eslint/eslint-plugin": "^8.8.0",
+    "@typescript-eslint/parser": "^8.8.0",
+    "esbuild": "^0.28.1",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2"
+  }
+}

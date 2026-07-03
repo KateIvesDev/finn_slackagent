@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    // Target modern Node 20+. NodeNext resolution means we use ESM with
+    // explicit ".js" extensions on relative imports (tsx handles this at runtime).
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+
+    // Strictness — the whole point. Everything below is on by default under
+    // "strict", but a few extras catch common footguns.
+    "strict": true,
+    "noUncheckedIndexedAccess": true, // arr[i] is T | undefined, forces you to check
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+
+    // We only typecheck/run via tsx; we never emit JS to disk.
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true // enforces `import type` for type-only imports
+  },
+  "include": ["src", "seed", "local"]
+}
