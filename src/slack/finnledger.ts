@@ -30,8 +30,12 @@ export interface LedgerEntry {
   verdict: Verdict;
   /** One-line summary of the feedback that triggered the debate. */
   feedbackSummary: string;
-  /** Who approved — a display name, or a "<@U…>" mention if you prefer. */
-  approvedBy: string;
+  /** approved -> action executed; rejected -> overruled, nothing ran. */
+  decision: "approved" | "rejected";
+  /** Display name of the human who decided. Canvas markdown doesn't resolve
+   *  Slack's "<@U…>" mention syntax the way messages do, so this must already
+   *  be a plain name (see resolveDisplayName in finnFlow.ts), not a mention. */
+  decidedBy: string;
   /** Permalink back to the debate thread (chat.getPermalink). */
   threadPermalink?: string;
   at?: Date;
@@ -58,11 +62,15 @@ export function formatEntry(entry: LedgerEntry): string {
     .join(" · ");
 
   const link = entry.threadPermalink ? ` · [view debate](${entry.threadPermalink})` : "";
+  const callLine =
+    entry.decision === "approved"
+      ? `**Call:** ${v.action.label} · **Approved by** ${entry.decidedBy}${link}`
+      : `**Call:** ${v.action.label} — overruled · **Rejected by** ${entry.decidedBy}${link}`;
 
   return (
     `### :ocean: ${date} — ${v.headline}\n` +
     `**Feedback:** ${entry.feedbackSummary}\n` +
-    `**Call:** ${v.action.label} · **Approved by** ${entry.approvedBy}${link}\n` +
+    `${callLine}\n` +
     `${v.rationale}\n` +
     `_${reads}_\n`
   );
@@ -82,6 +90,13 @@ export async function recordVerdict(
 // ── Web API writer (recommended default) ────────────────────────────────────────
 export class WebApiCanvasWriter implements CanvasWriter {
   private cache = new Map<string, string>(); // channelId -> canvasId
+  // Slack auto-provisions a blank canvas for most channels before Finn ever
+  // runs, so `lookupChannelCanvas` below usually finds an existing (empty,
+  // header-less) canvas rather than hitting the `create` branch that writes
+  // LEDGER_HEADER — this tracks which canvases we've backfilled the header
+  // into, bounded to this warm process (worst case: header re-inserted once
+  // more on a cold start, a harmless cosmetic duplicate).
+  private headerEnsured = new Set<string>();
 
   constructor(private client: WebClient) {}
 
@@ -93,6 +108,7 @@ export class WebApiCanvasWriter implements CanvasWriter {
     const existing = await this.lookupChannelCanvas(channelId);
     if (existing) {
       this.cache.set(channelId, existing);
+      await this.ensureHeader(existing);
       return existing;
     }
 
@@ -104,6 +120,7 @@ export class WebApiCanvasWriter implements CanvasWriter {
       const id = (res as { canvas_id?: string }).canvas_id;
       if (!id) throw new Error("conversations.canvases.create returned no canvas_id");
       this.cache.set(channelId, id);
+      this.headerEnsured.add(id); // create() already wrote LEDGER_HEADER above
       return id;
     } catch (err) {
       // Lost a create race — someone else made it first. Fetch and use theirs.
@@ -111,11 +128,30 @@ export class WebApiCanvasWriter implements CanvasWriter {
         const again = await this.lookupChannelCanvas(channelId);
         if (again) {
           this.cache.set(channelId, again);
+          await this.ensureHeader(again);
           return again;
         }
       }
       throw err;
     }
+  }
+
+  /** Backfill LEDGER_HEADER into a canvas we didn't create ourselves (Slack's
+   *  auto-provisioned default, or one from a lost create race) — otherwise it
+   *  never gets a title/heading at all. Runs at most once per canvasId per
+   *  warm process. */
+  private async ensureHeader(canvasId: string): Promise<void> {
+    if (this.headerEnsured.has(canvasId)) return;
+    this.headerEnsured.add(canvasId);
+    await withEditRetry(async () => {
+      const res = await this.client.apiCall("canvases.edit", {
+        canvas_id: canvasId,
+        changes: [
+          { operation: "insert_at_start", document_content: { type: "markdown", markdown: LEDGER_HEADER } },
+        ],
+      });
+      if (!(res as { ok?: boolean }).ok) throw asError(res);
+    });
   }
 
   async appendMarkdown(canvasId: string, markdown: string): Promise<void> {

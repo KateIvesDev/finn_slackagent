@@ -67,7 +67,12 @@ export class DynamoVerdictStore implements VerdictStore {
 
   constructor(tableName: string = DEFAULT_TABLE_NAME, config?: DynamoDBClientConfig) {
     this.tableName = tableName;
-    this.doc = DynamoDBDocumentClient.from(new DynamoDBClient(config ?? {}));
+    // Feedback.user is `string | undefined` — the DocumentClient otherwise
+    // throws ("Pass options.removeUndefinedValues=true...") rather than
+    // silently dropping the key, unlike a plain JSON.stringify would.
+    this.doc = DynamoDBDocumentClient.from(new DynamoDBClient(config ?? {}), {
+      marshallOptions: { removeUndefinedValues: true },
+    });
   }
 
   async get(feedbackId: string): Promise<VerdictCacheEntry | undefined> {

@@ -7,9 +7,6 @@ import { buildVerdictCard } from "./verdictCard.js";
 // visually separate is mechanical: shark posts pass username/icon; Finn posts never do.
 // Set Finn's name + a distinct avatar in your app settings (Display Information), not here.
 
-/** Left-stripe accent for Finn's verdict, so the host's card pops against the panel. */
-const FINN_ACCENT = "#4A5568"; // slate; pick something off the shark palette
-
 /**
  * Finn convenes the panel at the top of the thread. Understated on purpose — his weight
  * is the verdict card, not the opener. No username/icon: this renders as native Finn.
@@ -50,16 +47,15 @@ export async function postFinnVerdict(
   verdict: Verdict,
   verdictValue: string,
 ): Promise<string> {
+  // Primary `blocks`, not `attachments` — Slack collapses attachments behind
+  // a "Show more" link past a few blocks, which was hiding the Approve/Reject
+  // buttons. Costs the colored accent stripe (attachments-only), but the
+  // buttons being visible without a click matters more than the color bar.
   const res = await client.chat.postMessage({
     channel,
     thread_ts: threadTs,
     text: `Finn's call: ${verdict.headline}`, // notification fallback
-    attachments: [
-      {
-        color: FINN_ACCENT,
-        blocks: buildVerdictCard(verdict, verdictValue),
-      },
-    ],
+    blocks: buildVerdictCard(verdict, verdictValue),
   });
   return res.ts as string;
 }

@@ -23,6 +23,14 @@ variable "slack_bot_token" {
   sensitive   = true
 }
 
+variable "slack_mcp_user_token" {
+  description = "User token (xoxp-...) for mcp.slack.com — the sharks' Slack search tool. MCP's Real-time Search API requires a user token with search:read.* scopes; the bot token can't do full-text search."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+
 variable "slack_signing_secret" {
   description = "Verifies incoming requests really came from Slack (HTTP mode replaces the app token Socket Mode used)."
   type        = string

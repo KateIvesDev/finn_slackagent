@@ -9,12 +9,17 @@
  * See src/mcp/client.ts for the MCP client factory these will use.
  */
 import { defineTool, createRegistry } from './registry.js';
+import { getSlackMcpClient } from '../mcp/client.js';
 
 // --- Result shapes returned by tools --------------------------------------
 // Keeping these explicit makes the model's tool-result feedback predictable.
 
+// mcp.slack.com's search tool returns one formatted markdown blob covering all
+// matches (channel/author/time/permalink/text interleaved as text), not clean
+// discrete fields per match — so this mirrors that rather than force a shape
+// the real tool doesn't produce.
 export interface SlackSearchResult {
-  matches: { permalink: string; text: string; channel: string; ts: string }[];
+  resultsText: string;
 }
 export interface ZendeskTicket {
   id: number;
@@ -56,18 +61,27 @@ export const slackRtsSearch = defineTool<{ query: string }, SlackSearchResult>({
     required: ['query'],
   },
   async execute(input) {
-    // TODO: call the Slack MCP server's search tool via getSlackMcpClient().
-    // For now return an empty-ish stub so the loop keeps flowing.
-    return {
-      matches: [
-        {
-          permalink: 'https://example.slack.com/archives/C0/p000',
-          text: `[STUB] message mentioning "${input.query}"`,
-          channel: 'C0',
-          ts: '0000000000.000000',
-        },
-      ],
-    };
+    // Only search:read.public is granted (see CLAUDE.md), so this must call
+    // slack_search_public, not slack_search_public_and_private (which needs
+    // extra consent scopes we deliberately didn't request).
+    try {
+      const client = await getSlackMcpClient();
+      const result = await client.callTool({
+        name: 'slack_search_public',
+        arguments: { query: input.query, limit: 5 },
+      });
+      const block = (result.content as { type: string; text?: string }[] | undefined)?.find(
+        (c) => c.type === 'text' && typeof c.text === 'string',
+      );
+      if (!block?.text) return { resultsText: 'No results.' };
+      const parsed = JSON.parse(block.text) as { results?: string };
+      return { resultsText: parsed.results ?? 'No results.' };
+    } catch (err) {
+      // A flaky search call shouldn't take down the whole shark debate — let
+      // this persona reason with "search unavailable" rather than reject the
+      // Promise.all in runFinnFlow and silence every shark.
+      return { resultsText: `Slack search unavailable: ${(err as Error).message}` };
+    }
   },
 });
 

@@ -74,7 +74,11 @@ export async function converse(args: ConverseArgs): Promise<ConverseCommandOutpu
     modelId: cfg.BEDROCK_MODEL_ID, // never hardcoded — comes from env
     system: args.system,
     messages: args.messages,
-    toolConfig: { tools: toBedrockTools(args.tools) },
+    // Bedrock rejects toolConfig.tools with length 0 outright ("Invalid
+    // length for parameter toolConfig.tools, valid min length: 1") — so omit
+    // toolConfig entirely for callers with no tools (e.g. the judge, which
+    // only reasons over the sharks' gathered evidence and never acts).
+    toolConfig: args.tools.length > 0 ? { tools: toBedrockTools(args.tools) } : undefined,
   });
   return client().send(command);
 }

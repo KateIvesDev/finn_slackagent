@@ -18,12 +18,10 @@ const clients = new Map<string, Client>();
 
 /**
  * Connect to (or reuse) an MCP server at `url`. Returns a ready MCP client you
- * can call `.callTool(...)` / `.listTools()` on.
- *
- * TODO: add auth headers if your MCP servers require them (the transport
- * accepts request init options — pass a bearer token from env there).
+ * can call `.callTool(...)` / `.listTools()` on. Pass `bearerToken` for
+ * servers that require auth (e.g. mcp.slack.com — see getSlackMcpClient).
  */
-export async function getMcpClient(url: string): Promise<Client> {
+export async function getMcpClient(url: string, bearerToken?: string): Promise<Client> {
   const existing = clients.get(url);
   if (existing) return existing;
 
@@ -32,7 +30,9 @@ export async function getMcpClient(url: string): Promise<Client> {
     { capabilities: {} },
   );
 
-  const transport = new StreamableHTTPClientTransport(new URL(url));
+  const transport = new StreamableHTTPClientTransport(new URL(url), {
+    requestInit: bearerToken ? { headers: { Authorization: `Bearer ${bearerToken}` } } : undefined,
+  });
   await client.connect(transport);
 
   clients.set(url, client);
@@ -46,11 +46,14 @@ export async function getZendeskMcpClient(): Promise<Client> {
   return getMcpClient(cfg.ZENDESK_MCP_URL);
 }
 
-/** Convenience: the Slack MCP client. */
+/** Convenience: the Slack MCP client. Requires a USER token (xoxp-...), not
+ *  the bot token — mcp.slack.com's Real-time Search API rejects bot tokens
+ *  for search (see CLAUDE.md / .env.example for the scope requirements). */
 export async function getSlackMcpClient(): Promise<Client> {
   const cfg = loadConfig();
   if (!cfg.SLACK_MCP_URL) throw new Error('SLACK_MCP_URL is not set.');
-  return getMcpClient(cfg.SLACK_MCP_URL);
+  if (!cfg.SLACK_MCP_USER_TOKEN) throw new Error('SLACK_MCP_USER_TOKEN is not set.');
+  return getMcpClient(cfg.SLACK_MCP_URL, cfg.SLACK_MCP_USER_TOKEN);
 }
 
 /** Close all open MCP connections (call on shutdown). */

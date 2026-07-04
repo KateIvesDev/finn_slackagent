@@ -36,6 +36,10 @@ const schema = z.object({
   // MCP
   ZENDESK_MCP_URL: optionalUrl,
   SLACK_MCP_URL: optionalUrl,
+  // User token (xoxp-...), NOT the bot token — mcp.slack.com's Real-time
+  // Search API requires a user token with search:read.* scopes; see
+  // src/mcp/client.ts for why the bot token can't be substituted here.
+  SLACK_MCP_USER_TOKEN: z.string().optional(),
 
   // Zendesk sandbox (seeding)
   ZENDESK_SUBDOMAIN: z.string().optional(),

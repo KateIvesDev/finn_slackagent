@@ -7,6 +7,7 @@ aws_region  = "us-east-1"
 aws_profile = "slackagent"
 
 slack_bot_token        = "xoxb-your-bot-token"
+slack_mcp_user_token   = "xoxp-your-user-token"
 slack_signing_secret   = "your-signing-secret"
 slack_feedback_channel = "C0123456789"
 

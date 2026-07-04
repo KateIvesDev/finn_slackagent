@@ -47,6 +47,7 @@ resource "aws_lambda_function" "worker" {
       VERDICT_TABLE_NAME     = aws_dynamodb_table.verdicts.name
       ZENDESK_MCP_URL        = var.zendesk_mcp_url
       SLACK_MCP_URL          = var.slack_mcp_url
+      SLACK_MCP_USER_TOKEN   = var.slack_mcp_user_token
       ZENDESK_SUBDOMAIN      = var.zendesk_subdomain
       ZENDESK_EMAIL          = var.zendesk_email
       ZENDESK_API_TOKEN      = var.zendesk_api_token

@@ -101,6 +101,18 @@ function ledgerFor(client: WebClient): WebApiCanvasWriter {
   return writer;
 }
 
+/** Canvas markdown renders "<@U…>" as literal text (unlike a message, Slack
+ *  doesn't resolve mention syntax there), so the ledger needs an actual name. */
+async function resolveDisplayName(client: WebClient, userId: string): Promise<string> {
+  try {
+    const res = await client.users.info({ user: userId });
+    const profile = res.user?.profile;
+    return profile?.display_name || profile?.real_name || res.user?.real_name || userId;
+  } catch {
+    return userId;
+  }
+}
+
 /** Approve → execute the action, record it in the decision ledger, resolve the card. */
 export async function handleApprove(
   client: WebClient,
@@ -124,10 +136,12 @@ export async function handleApprove(
     // Non-critical — the ledger entry just won't have a link back.
   }
 
+  const decidedBy = await resolveDisplayName(client, userId);
   await recordVerdict(ledgerFor(client), entry.feedback.channel, {
     verdict: entry.verdict,
     feedbackSummary: entry.feedback.text,
-    approvedBy: `<@${userId}>`,
+    decision: 'approved',
+    decidedBy,
     threadPermalink,
   });
 
@@ -162,6 +176,26 @@ export async function handleReject(
     ts: entry.verdictMessageTs,
     text: `Finn's call: ${entry.verdict.headline} — rejected`,
     blocks: buildResolvedFooter(entry.verdict, 'rejected', userId),
+  });
+
+  let threadPermalink: string | undefined;
+  try {
+    const perma = await client.chat.getPermalink({
+      channel: entry.feedback.channel,
+      message_ts: entry.feedback.threadTs,
+    });
+    threadPermalink = perma.permalink;
+  } catch {
+    // Non-critical — the ledger entry just won't have a link back.
+  }
+
+  const decidedBy = await resolveDisplayName(client, userId);
+  await recordVerdict(ledgerFor(client), entry.feedback.channel, {
+    verdict: entry.verdict,
+    feedbackSummary: entry.feedback.text,
+    decision: 'rejected',
+    decidedBy,
+    threadPermalink,
   });
 }
 

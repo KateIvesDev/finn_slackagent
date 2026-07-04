@@ -75,7 +75,9 @@ Approve/Reject buttons.
   `SLACK_APP_TOKEN`.
 - Bot scopes: `chat:write`, `chat:write.customize` (shark nameplates),
   `reactions:write`, `channels:history`, `groups:history`,
-  `app_mentions:read`, plus canvas write scopes for the decision ledger
+  `app_mentions:read`, `users:read` (resolves the approver's display name for
+  the decision ledger — Canvas markdown doesn't render `<@U…>` mentions the
+  way messages do), plus canvas write scopes for the decision ledger
   (`finnledger.ts`).
 - Subscribe to the `message.channels` and `app_home_opened` events.
 - Install to workspace → copy the bot token (`xoxb-…`) → `SLACK_BOT_TOKEN`.
