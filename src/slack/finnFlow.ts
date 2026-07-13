@@ -423,11 +423,16 @@ export async function handleFeedbackSubmit(
   const channel = loadConfig().SLACK_FEEDBACK_CHANNEL;
   if (!channel) return;
 
-  // Org tier isn't a structured Feedback field — the sharks read context from
-  // the feedback text itself (see how arrJudgment's trigger text embeds "New
-  // feedback from Ajax Corp" in seed/scenarios.ts), so fold it in the same way.
-  const fullText =
-    tier === 'enterprise' ? `New feedback from an enterprise account near renewal: ${text}` : text;
+  // Attribute the feedback to a REAL seeded org for the chosen tier — the sharks
+  // read context from the text (like arrJudgment's "New feedback from Ajax Corp"),
+  // and Support's accountContext does an EXACT org lookup. A vague
+  // "enterprise account near renewal" resolves to nothing → falls through to the
+  // free-tier default, which then contradicts the "enterprise" framing and makes
+  // Support waffle into an empty position. Naming a seeded org (enterprise →
+  // at-risk Northwind; free → free-tier Maya Ellis) gives the lookup real
+  // ARR/renewal/health, so the ARR flip is grounded, not just a text prefix.
+  const fromOrg = tier === 'enterprise' ? 'Northwind Traders' : 'Maya Ellis Coaching';
+  const fullText = `New feedback from ${fromOrg}: ${text}`;
 
   const posted = await client.chat.postMessage({ channel, text: fullText });
   const ts = posted.ts as string;
