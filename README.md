@@ -172,8 +172,3 @@ npm run reset:slack -- --stage            # wipe the live demo channel between r
 | `npm run typecheck` | `tsc --noEmit` (strict) |
 | `npm run lint` | ESLint |
 | `npm run format` | Prettier |
-
-## Project layout
-
-See [CLAUDE.md](CLAUDE.md) for the full architecture, the two-transport
-design, and the recommended fill-in order.
