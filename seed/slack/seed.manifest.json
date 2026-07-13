@@ -1,0 +1,187 @@
+{
+  "version": 1,
+  "seededAt": "2026-07-12T17:22:07.096Z",
+  "messages": [
+    {
+      "tag": "bug_spike",
+      "channelName": "incidents",
+      "channel": "C0BFWPBPU9W",
+      "ts": "1783876869.786939"
+    },
+    {
+      "tag": "bug_spike",
+      "channelName": "incidents",
+      "channel": "C0BFWPBPU9W",
+      "ts": "1783876871.915849",
+      "threadTs": "1783876869.786939"
+    },
+    {
+      "tag": "bug_spike",
+      "channelName": "incidents",
+      "channel": "C0BFWPBPU9W",
+      "ts": "1783876874.070169",
+      "threadTs": "1783876869.786939"
+    },
+    {
+      "tag": "bug_spike",
+      "channelName": "support-escalations",
+      "channel": "C0BEZ0P7CUE",
+      "ts": "1783876876.216739"
+    },
+    {
+      "tag": "known_issue",
+      "channelName": "eng-triage",
+      "channel": "C0BF65JMDEY",
+      "ts": "1783876878.345229"
+    },
+    {
+      "tag": "known_issue",
+      "channelName": "eng-triage",
+      "channel": "C0BF65JMDEY",
+      "ts": "1783876880.469339",
+      "threadTs": "1783876878.345229"
+    },
+    {
+      "tag": "feature_request",
+      "channelName": "product-roadmap",
+      "channel": "C0BF4QM632Q",
+      "ts": "1783876882.614479"
+    },
+    {
+      "tag": "feature_request",
+      "channelName": "product-roadmap",
+      "channel": "C0BF4QM632Q",
+      "ts": "1783876884.738389",
+      "threadTs": "1783876882.614479"
+    },
+    {
+      "tag": "feature_request",
+      "channelName": "product-decisions",
+      "channel": "C0BEM3ZR3QX",
+      "ts": "1783876886.875499"
+    },
+    {
+      "tag": "arr_flip",
+      "channelName": "renewals",
+      "channel": "C0BF4NCD5AQ",
+      "ts": "1783876888.998629"
+    },
+    {
+      "tag": "arr_flip",
+      "channelName": "renewals",
+      "channel": "C0BF4NCD5AQ",
+      "ts": "1783876891.121809",
+      "threadTs": "1783876888.998629"
+    },
+    {
+      "tag": "arr_flip",
+      "channelName": "voice-of-customer",
+      "channel": "C0BEUNY8AQK",
+      "ts": "1783876893.271139"
+    },
+    {
+      "tag": "github_issue_log",
+      "channelName": "github-issues",
+      "channel": "C0BFP7USPAT",
+      "ts": "1783876895.393409"
+    },
+    {
+      "tag": "github_issue_log",
+      "channelName": "github-issues",
+      "channel": "C0BFP7USPAT",
+      "ts": "1783876897.524629",
+      "threadTs": "1783876895.393409"
+    },
+    {
+      "tag": "github_issue_log",
+      "channelName": "github-issues",
+      "channel": "C0BFP7USPAT",
+      "ts": "1783876899.760859"
+    },
+    {
+      "tag": "github_issue_log",
+      "channelName": "github-issues",
+      "channel": "C0BFP7USPAT",
+      "ts": "1783876901.882089",
+      "threadTs": "1783876899.760859"
+    },
+    {
+      "tag": "github_issue_log",
+      "channelName": "github-issues",
+      "channel": "C0BFP7USPAT",
+      "ts": "1783876904.029339"
+    },
+    {
+      "tag": "github_issue_log",
+      "channelName": "github-issues",
+      "channel": "C0BFP7USPAT",
+      "ts": "1783876906.169299"
+    },
+    {
+      "tag": "github_issue_log",
+      "channelName": "github-issues",
+      "channel": "C0BFP7USPAT",
+      "ts": "1783876908.305409"
+    },
+    {
+      "tag": "github_issue_log",
+      "channelName": "github-issues",
+      "channel": "C0BFP7USPAT",
+      "ts": "1783876910.443219"
+    },
+    {
+      "tag": "github_issue_log",
+      "channelName": "github-issues",
+      "channel": "C0BFP7USPAT",
+      "ts": "1783876912.583529"
+    },
+    {
+      "tag": "github_issue_log",
+      "channelName": "github-issues",
+      "channel": "C0BFP7USPAT",
+      "ts": "1783876914.712439"
+    },
+    {
+      "tag": "distractor",
+      "channelName": "incidents",
+      "channel": "C0BFWPBPU9W",
+      "ts": "1783876916.843479"
+    },
+    {
+      "tag": "distractor",
+      "channelName": "eng-triage",
+      "channel": "C0BF65JMDEY",
+      "ts": "1783876918.970149"
+    },
+    {
+      "tag": "distractor",
+      "channelName": "product-roadmap",
+      "channel": "C0BF4QM632Q",
+      "ts": "1783876921.099929"
+    },
+    {
+      "tag": "distractor",
+      "channelName": "support-escalations",
+      "channel": "C0BEZ0P7CUE",
+      "ts": "1783876923.218129"
+    },
+    {
+      "tag": "distractor",
+      "channelName": "voice-of-customer",
+      "channel": "C0BEUNY8AQK",
+      "ts": "1783876925.347589"
+    },
+    {
+      "tag": "distractor",
+      "channelName": "renewals",
+      "channel": "C0BF4NCD5AQ",
+      "ts": "1783876927.469409"
+    },
+    {
+      "tag": "distractor",
+      "channelName": "incidents",
+      "channel": "C0BFWPBPU9W",
+      "ts": "1783876929.589139"
+    }
+  ]
+}

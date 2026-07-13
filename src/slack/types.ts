@@ -37,6 +37,14 @@ export interface Verdict {
   headline: string;
   /** 2-3 sentences a human approver can sanity-check at a glance. */
   rationale: string;
+  /** Where the three sharks agreed, one line — the Judge's CONSENSUS field. */
+  consensus?: string;
+  /** Where they disagreed, one line. Absent when the Judge said "none" —
+   *  i.e. this is only set when there's a real tradeoff worth surfacing. */
+  tension?: string;
+  /** The one thing that tipped the call. Most valuable exactly when `tension`
+   *  is set — it's the answer to "why did X outweigh Y". */
+  decidingFactor?: string;
   /** Finn's resolved read of each shark's argument (drives 👍/👎/⚖️). */
   reads: Record<SharkRole, Stance>;
   action: VerdictAction;
@@ -79,6 +87,23 @@ export interface Scenario {
  */
 export type WorkTask =
   | { type: 'run_finn_flow'; feedback: Feedback }
+  | { type: 'assistant_message'; feedback: Feedback }
+  | {
+      type: 'summarize_activity';
+      /** Where to post the digest — wherever the question was asked (e.g. a DM). */
+      replyChannel: string;
+      threadTs: string;
+      /** Which channel's decision log to read — the real feedback channel,
+       *  NOT necessarily replyChannel (asking from a DM shouldn't only see
+       *  decisions that were themselves triggered from that same DM). */
+      queryChannel: string;
+    }
+  | {
+      type: 'assistant_help';
+      /** Where to post the help blurb — the DM the question was asked in. */
+      replyChannel: string;
+      threadTs: string;
+    }
   | { type: 'approve'; feedbackId: string; userId: string }
   | { type: 'reject'; feedbackId: string; userId: string }
   | { type: 'publish_home'; userId: string }

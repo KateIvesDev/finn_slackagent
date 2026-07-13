@@ -13,6 +13,7 @@ import bolt from '@slack/bolt';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { loadConfig, requireConfig } from '../config/index.js';
 import { registerListeners } from '../slack/listeners.js';
+import { registerFinnAgent } from '../slack/assistant.js';
 import type { WorkTask } from '../slack/types.js';
 
 const { App, AwsLambdaReceiver } = bolt;
@@ -51,5 +52,6 @@ async function dispatch(task: WorkTask): Promise<void> {
 }
 
 registerListeners(app, dispatch);
+registerFinnAgent(app, dispatch);
 
 export const handler = await awsLambdaReceiver.start();

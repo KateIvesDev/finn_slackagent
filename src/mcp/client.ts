@@ -21,7 +21,7 @@ const clients = new Map<string, Client>();
  * can call `.callTool(...)` / `.listTools()` on. Pass `bearerToken` for
  * servers that require auth (e.g. mcp.slack.com — see getSlackMcpClient).
  */
-export async function getMcpClient(url: string, bearerToken?: string): Promise<Client> {
+export async function getMcpClient(url: string, headers?: Record<string, string>): Promise<Client> {
   const existing = clients.get(url);
   if (existing) return existing;
 
@@ -31,7 +31,7 @@ export async function getMcpClient(url: string, bearerToken?: string): Promise<C
   );
 
   const transport = new StreamableHTTPClientTransport(new URL(url), {
-    requestInit: bearerToken ? { headers: { Authorization: `Bearer ${bearerToken}` } } : undefined,
+    requestInit: headers ? { headers } : undefined,
   });
   await client.connect(transport);
 
@@ -39,21 +39,28 @@ export async function getMcpClient(url: string, bearerToken?: string): Promise<C
   return client;
 }
 
-/** Convenience: the Zendesk (Vaultdesk) MCP client. */
+/**
+ * Convenience: the Zendesk MCP client. The deployed server is a Lambda Function
+ * URL, and Function URLs with AuthType NONE return 403 if the request carries an
+ * `Authorization` header (the frontend tries to validate it as SigV4) — so the
+ * gate secret goes in a CUSTOM header (`X-Mcp-Token`), which the handler checks.
+ */
 export async function getZendeskMcpClient(): Promise<Client> {
   const cfg = loadConfig();
   if (!cfg.ZENDESK_MCP_URL) throw new Error('ZENDESK_MCP_URL is not set.');
-  return getMcpClient(cfg.ZENDESK_MCP_URL);
+  const headers = cfg.ZENDESK_MCP_TOKEN ? { 'X-Mcp-Token': cfg.ZENDESK_MCP_TOKEN } : undefined;
+  return getMcpClient(cfg.ZENDESK_MCP_URL, headers);
 }
 
 /** Convenience: the Slack MCP client. Requires a USER token (xoxp-...), not
  *  the bot token — mcp.slack.com's Real-time Search API rejects bot tokens
- *  for search (see CLAUDE.md / .env.example for the scope requirements). */
+ *  for search (see CLAUDE.md / .env.example for the scope requirements). Slack's
+ *  server is a normal endpoint (not a Function URL), so `Authorization` is fine. */
 export async function getSlackMcpClient(): Promise<Client> {
   const cfg = loadConfig();
   if (!cfg.SLACK_MCP_URL) throw new Error('SLACK_MCP_URL is not set.');
   if (!cfg.SLACK_MCP_USER_TOKEN) throw new Error('SLACK_MCP_USER_TOKEN is not set.');
-  return getMcpClient(cfg.SLACK_MCP_URL, cfg.SLACK_MCP_USER_TOKEN);
+  return getMcpClient(cfg.SLACK_MCP_URL, { Authorization: `Bearer ${cfg.SLACK_MCP_USER_TOKEN}` });
 }
 
 /** Close all open MCP connections (call on shutdown). */

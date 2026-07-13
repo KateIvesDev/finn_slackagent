@@ -10,17 +10,28 @@ slack_bot_token        = "xoxb-your-bot-token"
 slack_mcp_user_token   = "xoxp-your-user-token"
 slack_signing_secret   = "your-signing-secret"
 slack_feedback_channel = "C0123456789"
+# Slack user group (subteam) ID, starts with S — @-mentioned when a verdict needs
+# human approval. Leave blank to skip the mention.
+slack_product_owner_group_id = "S0123456789"
 
 bedrock_model_id = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 bedrock_stub     = "true" # flip to "false" once Bedrock model access is confirmed working
 
 # Optional — leave blank until decided/wired up.
+# NOTE: zendesk_mcp_url is no longer needed — the Zendesk MCP is deployed here as
+# its own Lambda + Function URL, and the worker is wired to it automatically.
 zendesk_mcp_url = ""
 slack_mcp_url   = ""
 
+# Zendesk sandbox creds — used by the deployed Zendesk MCP Lambda (real ticket
+# search + org/account context). Required for the live MCP to return real data.
 zendesk_subdomain = ""
 zendesk_email     = ""
 zendesk_api_token = ""
+
+# Shared bearer secret gating the (public) Zendesk MCP Function URL. Generate a
+# strong random string, e.g. `openssl rand -hex 32`.
+zendesk_mcp_token = ""
 
 jira_base_url    = ""
 jira_email       = ""

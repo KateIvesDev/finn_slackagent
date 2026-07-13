@@ -11,35 +11,65 @@
  *           `npm run seed -- bug-spike` (one scenario by id)
  *
  * Note: this seeds Zendesk/Jira. The Slack context substrate (channel
- * history the sharks search via RTS) is a separate step — see
+ * history the personas search via RTS) is a separate step — see
  * seed/slack/seed.ts.
  */
 import { loadConfig, requireConfig } from '../src/config/index.js';
-import { scenarios, getScenario, distractorTickets } from './scenarios.js';
-import type { Scenario, SeedZendeskOrg, SeedZendeskTicket, SeedJiraIssue } from './scenarios.js';
+import { scenarios, getScenario, distractorTickets, allOrgs, orgByEmailDomain } from './scenarios.js';
+import type { Scenario, SeedZendeskTicket, SeedJiraIssue } from './scenarios.js';
+import { zendeskFromEnv, type ZendeskClient } from '../src/zendesk/client.js';
 
 // ---------------------------------------------------------------------------
-// Stubbed API boundaries. Fill these in with real REST calls.
+// Real Zendesk seeding (Jira still stubbed — only Zendesk is wired to a live
+// sandbox for the MCP integration). One client + an externalId→orgId map so
+// tickets can attach their requester to the right org.
 // ---------------------------------------------------------------------------
 
-/** Create (or update, if externalId already exists) a Zendesk organization. */
-async function upsertZendeskOrg(org: SeedZendeskOrg, scenarioId: string): Promise<void> {
-  // TODO: real Zendesk REST call.
-  //   GET  /api/v2/organizations/search.json?external_id={org.externalId} to check first.
-  //   POST /api/v2/organizations.json (or PUT to update) with org_fields for
-  //   plan/arrUsd/renewalDate — set those up as custom organization fields first.
-  console.log(`  [stub] upsert Zendesk org: "${org.name}" (${scenarioId})`);
+let zd: ZendeskClient;
+const orgIdByExternalId = new Map<string, number>();
+
+/** Seed every org up front with its custom fields (plan/arr_usd/renewal_date/
+ *  health) + notes, and remember its real id so tickets can attach to it. */
+async function seedAllOrgs(): Promise<void> {
+  console.log(`\n▶ Seeding ${allOrgs.length} Zendesk orgs…`);
+  for (const org of allOrgs) {
+    const id = await zd.upsertOrganization({
+      externalId: org.externalId,
+      name: org.name,
+      plan: org.plan,
+      arrUsd: org.arrUsd,
+      renewalDate: org.renewalDate,
+      health: org.health,
+      notes: org.note,
+    });
+    orgIdByExternalId.set(org.externalId, id);
+    console.log(`  ✔ org "${org.name}" (#${id})`);
+  }
 }
 
-/** Create (or skip if present) a Zendesk ticket, keyed by externalId. */
+/** Resolve which org a ticket's requester belongs to, by email domain. */
+function orgIdForRequester(email: string): number | undefined {
+  const domain = email.split('@')[1]?.toLowerCase() ?? '';
+  const externalId = orgByEmailDomain[domain];
+  return externalId ? orgIdByExternalId.get(externalId) : undefined;
+}
+
+/** Create (or skip if present) a Zendesk ticket, attaching the requester to the
+ *  right org so it inherits that org's ARR/renewal/health custom fields. */
 async function upsertZendeskTicket(ticket: SeedZendeskTicket, scenarioId: string): Promise<string> {
-  // TODO: real Zendesk REST call.
-  //   POST https://{subdomain}.zendesk.com/api/v2/tickets.json
-  //   Auth: basic `${email}/token:${apiToken}` (base64).
-  //   Tag every ticket with ticket.externalId (as an external_id field) so
-  //   re-running the seed updates rather than duplicates. Look it up first.
-  //   See the createdDaysAgo doc comment in scenarios.ts re: the Import API.
-  console.log(`  [stub] upsert Zendesk ticket: "${ticket.subject}" (${ticket.externalId}, ${scenarioId})`);
+  const organizationId = orgIdForRequester(ticket.requesterEmail);
+  const name = ticket.requesterEmail.split('@')[0] ?? 'Requester';
+  const requesterId = await zd.upsertUser(ticket.requesterEmail, name, organizationId);
+  await zd.createTicket({
+    externalId: ticket.externalId,
+    subject: ticket.subject,
+    description: ticket.description,
+    requesterId,
+    organizationId,
+    tags: ticket.tags,
+    createdDaysAgo: ticket.createdDaysAgo,
+  });
+  console.log(`  ✔ ticket "${ticket.subject}" (${ticket.externalId}, ${scenarioId})`);
   return ticket.externalId;
 }
 
@@ -61,9 +91,8 @@ async function upsertJiraIssue(issue: SeedJiraIssue, scenarioId: string): Promis
 async function seedScenario(scenario: Scenario): Promise<void> {
   console.log(`\n▶ Seeding scenario: ${scenario.id} — ${scenario.title}`);
 
-  for (const org of scenario.seedOrgs ?? []) {
-    await upsertZendeskOrg(org, scenario.id);
-  }
+  // Orgs are seeded globally up front (seedAllOrgs) — a ticket's requester is
+  // attached to its org by email domain, so we don't seed per-scenario orgs here.
   for (const ticket of scenario.seedZendeskTickets ?? []) {
     await upsertZendeskTicket(ticket, scenario.id);
   }
@@ -75,16 +104,10 @@ async function seedScenario(scenario: Scenario): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  // These are only needed for REAL calls; kept required so you notice early.
-  requireConfig([
-    'ZENDESK_SUBDOMAIN',
-    'ZENDESK_EMAIL',
-    'ZENDESK_API_TOKEN',
-    'JIRA_BASE_URL',
-    'JIRA_EMAIL',
-    'JIRA_API_TOKEN',
-  ]);
+  // Zendesk is wired to a live sandbox; Jira is still stubbed.
+  requireConfig(['ZENDESK_SUBDOMAIN', 'ZENDESK_EMAIL', 'ZENDESK_API_TOKEN']);
   loadConfig();
+  zd = zendeskFromEnv();
 
   // Optional scenario id from CLI: `npm run seed -- bug-spike`.
   const targetId = process.argv[2];
@@ -95,6 +118,9 @@ async function main(): Promise<void> {
   if (targetId && toSeed.length === 0) {
     throw new Error(`Unknown scenario id: ${targetId}`);
   }
+
+  // Every org first (so tickets can attach to them), then the scenarios.
+  await seedAllOrgs();
 
   for (const scenario of toSeed) {
     await seedScenario(scenario);

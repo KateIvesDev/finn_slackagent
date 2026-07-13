@@ -13,6 +13,7 @@ import {
 import type {
   Message,
   Tool as BedrockTool,
+  ToolChoice,
   SystemContentBlock,
   ConverseCommandOutput,
 } from '@aws-sdk/client-bedrock-runtime';
@@ -51,6 +52,10 @@ export interface ConverseArgs {
   system: SystemContentBlock[];
   messages: Message[];
   tools: Tool[];
+  /** Optional tool-choice constraint. Pass `{ tool: { name } }` to FORCE the
+   *  model to call one specific tool (how the Judge guarantees a structured
+   *  verdict). Omit for the normal "call tools if you want" behavior. */
+  toolChoice?: ToolChoice;
 }
 
 /**
@@ -76,21 +81,86 @@ export async function converse(args: ConverseArgs): Promise<ConverseCommandOutpu
     messages: args.messages,
     // Bedrock rejects toolConfig.tools with length 0 outright ("Invalid
     // length for parameter toolConfig.tools, valid min length: 1") — so omit
-    // toolConfig entirely for callers with no tools (e.g. the judge, which
-    // only reasons over the sharks' gathered evidence and never acts).
-    toolConfig: args.tools.length > 0 ? { tools: toBedrockTools(args.tools) } : undefined,
+    // toolConfig entirely for callers with no tools. (The judge now always
+    // passes its submit_verdict output tool, so it takes the populated branch.)
+    toolConfig:
+      args.tools.length > 0
+        ? { tools: toBedrockTools(args.tools), toolChoice: args.toolChoice }
+        : undefined,
   });
-  return client().send(command);
+  return sendWithRetry(command);
+}
+
+/** Transient Bedrock errors a short backoff usually clears. We fire three
+ *  sharks + the judge concurrently, which makes throttling likely on on-demand
+ *  capacity — and an unretried throttle would otherwise abort a whole debate. */
+const RETRYABLE_ERRORS = new Set([
+  'ThrottlingException',
+  'TooManyRequestsException',
+  'ModelTimeoutException',
+  'ServiceUnavailableException',
+  'InternalServerException',
+]);
+
+async function sendWithRetry(
+  command: ConverseCommand,
+  maxAttempts = 4,
+): Promise<ConverseCommandOutput> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await client().send(command);
+    } catch (err) {
+      lastErr = err;
+      const name = (err as { name?: string })?.name ?? '';
+      if (!RETRYABLE_ERRORS.has(name) || attempt === maxAttempts - 1) throw err;
+      // Exponential backoff with jitter: ~0.5s, 1s, 2s (+ up to 250ms).
+      const backoff = 500 * 2 ** attempt + Math.random() * 250;
+      await new Promise((resolve) => setTimeout(resolve, backoff));
+    }
+  }
+  throw lastErr; // unreachable — the loop either returns or throws
 }
 
 /**
- * Stubbed model turn. Mimics the Converse output shape with a final assistant
- * message so the loop ends. Flip BEDROCK_STUB=false (and set creds) for real.
+ * Stubbed model turn. Mimics the Converse output shape so the loop and the
+ * structured-output path both run with ZERO credentials. Flip BEDROCK_STUB=false
+ * (and set creds) for real calls.
  *
- * TODO: to test the tool-use branch of runAgent, temporarily return a
- * `stopReason: 'tool_use'` message with a `toolUse` content block here.
+ * When a `submit_*` output tool is offered (see src/agents/outputTools.ts), the
+ * stub returns a `tool_use` turn "calling" it with canned typed args — so the
+ * shark/judge structured path is exercised locally, not just the old free-text
+ * one. Otherwise it returns a final text turn so the loop ends.
  */
 function stubConverse(args: ConverseArgs): ConverseCommandOutput {
+  const hasTool = (name: string) => args.tools.some((t) => t.name === name);
+
+  // Judge: forced submit_verdict — hand back a canned typed verdict.
+  if (hasTool('submit_verdict')) {
+    return toolUseOutput('submit_verdict', {
+      headline: '[STUB] File it — new bug',
+      action: 'create_jira',
+      rationale:
+        '[STUB] Multiple customers reported the same behavior and no matching Jira issue exists, so file a new bug.',
+      consensus: 'All three agree this is a real, untracked defect.',
+      tension: 'none',
+      decidingFactor: 'A fresh cluster of reports with nothing tracked.',
+      reads: { support: 'favored', engineering: 'favored', product: 'unresolved' },
+      details: 'Bug, high priority',
+    });
+  }
+
+  // Shark: submit_position sentinel present — hand back a canned typed position.
+  if (hasTool('submit_position')) {
+    return toolUseOutput('submit_position', {
+      stance: 'act',
+      confidence: 'medium',
+      recommendation: '[STUB] File a bug for the reported issue.',
+      evidence: ['[STUB] 3 similar reports this week', '[STUB] no matching issue tracked'],
+      agreement: 'Expect the panel to agree this is a real defect.',
+    });
+  }
+
   const lastUser = [...args.messages].reverse().find((m) => m.role === 'user');
   const echo =
     lastUser?.content?.find((c) => 'text' in c && c.text)?.['text' as never] ??
@@ -102,11 +172,25 @@ function stubConverse(args: ConverseArgs): ConverseCommandOutput {
         role: 'assistant',
         content: [
           {
-            text: `[STUB verdict text] Based on the input "${echo}", my position is: <fill in real reasoning>.`,
+            text: `[STUB text] Based on the input "${echo}", my position is: <fill in real reasoning>.`,
           },
         ],
       },
     },
     stopReason: 'end_turn',
+  } as unknown as ConverseCommandOutput;
+}
+
+/** Build a stub `tool_use` Converse output "calling" `name` with `input`. */
+function toolUseOutput(name: string, input: unknown): ConverseCommandOutput {
+  return {
+    $metadata: {},
+    output: {
+      message: {
+        role: 'assistant',
+        content: [{ toolUse: { toolUseId: `stub-${name}`, name, input } }],
+      },
+    },
+    stopReason: 'tool_use',
   } as unknown as ConverseCommandOutput;
 }

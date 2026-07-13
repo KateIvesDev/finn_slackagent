@@ -8,12 +8,12 @@
 /** Voices in the seeded threads. Rendered via chat:write.customize so threads read like
  *  real people instead of one bot talking to itself. */
 export const PERSONAS = {
-  priya: { username: "Priya · Support", icon: ":sos:" },
-  marco: { username: "Marco · Engineering", icon: ":hammer_and_wrench:" },
-  dana: { username: "Dana · Product", icon: ":compass:" },
-  tom: { username: "Tom · Customer Success", icon: ":handshake:" },
-  sam: { username: "Sam · Eng", icon: ":computer:" },
-  lena: { username: "Lena · Ops", icon: ":gear:" },
+  priya: { username: "Priya [Support]", icon_url: "https://api.dicebear.com/10.x/dylan/png?seed=74n2tb8a" },
+  marco: { username: "Marco [Eng]", icon_url: "https://api.dicebear.com/10.x/dylan/png?seed=ynaqz34o" },
+  dana: { username: "Dana [Product]", icon_url: "https://api.dicebear.com/10.x/dylan/png?seed=vgd1jtnk" },
+  tom: { username: "Tom [Customer Success]", icon_url: "https://api.dicebear.com/10.x/dylan/png?seed=cu99fl3c" },
+  sam: { username: "Sam [Eng]", icon_url: "https://api.dicebear.com/10.x/dylan/png?seed=sltgl7p9" },
+  lena: { username: "Lena [Ops]", icon_url: "https://api.dicebear.com/10.x/dylan/png?seed=s5j2yk7s" },
 } as const;
 
 export type PersonaKey = keyof typeof PERSONAS;
@@ -36,7 +36,7 @@ export interface SeedThread {
 /**
  * Vocabulary note: the same lag is phrased differently across threads ("sync lag",
  * "availability not updating", "stale calendar") so a shark's OR-query hits all of them.
- * Product is Cal.com throughout. Account names / issue numbers are consistent so
+ * Product is Kalabook throughout. Account names / issue numbers are consistent so
  * cross-references with Zendesk/Jira line up.
  */
 export const THREADS: SeedThread[] = [
@@ -88,7 +88,7 @@ export const THREADS: SeedThread[] = [
     channel: "product-decisions",
     tag: "feature_request",
     persona: "dana",
-    text: "Decision: we are NOT shipping per-user sync-interval overrides. Superseded by the Q3 two-way sync work. Route requests to the roadmap thread.",
+    text: "Decision (Dana): we're not building per-user sync-interval overrides — it's a band-aid, and once real-time two-way sync (KALA-1495) lands this quarter it's moot. Please route these requests to the roadmap thread rather than filing them.",
   },
 
   // ── Scenario 4 · ARR-weighted judgment call → verdict flips on tier ─────────
@@ -97,9 +97,15 @@ export const THREADS: SeedThread[] = [
     channel: "renewals",
     tag: "arr_flip",
     persona: "tom",
-    text: ":warning: Northwind Traders — $180k ARR, renewal Aug 31. Exec sponsor raised calendar sync lag on our last QBR and called it a dealbreaker. Flagging as churn risk.",
+    // Pinned to Ajax + EMBED (arr-judgment's actual topic), NOT Northwind + sync
+    // lag. The old version tied Northwind's churn risk to "calendar sync lag",
+    // which slackRtsSearch then surfaced on the sync-override scenario and
+    // wrongly flipped it into a churn escalation. Keeping the at-risk renewal
+    // signal on the embed topic corroborates arr-judgment and keeps it off the
+    // sync-lag topic. (See the ZENDESK_CATALOG id 141 note in src/tools/index.ts.)
+    text: ":warning: Ajax Corp — flag from the QBR: their exec sponsor singled out the embed on their marketing site (slow to load, layout shifting) and tied it directly to the renewal decision. CS is treating it as a churn risk. (Account facts / renewal date are in Zendesk.)",
     replies: [
-      { persona: "tom", text: "If this specific complaint resurfaces from Northwind, it needs to jump the queue — renewal is close and sentiment is already shaky." },
+      { persona: "tom", text: "If this embed complaint resurfaces from Ajax, it needs to jump the queue — sentiment there is already shaky heading into the renewal." },
     ],
   },
   {
@@ -107,6 +113,66 @@ export const THREADS: SeedThread[] = [
     tag: "arr_flip",
     persona: "priya",
     text: "Free-plan user grumbling that calendar sync is slow to refresh. Low heat, no account attached, just logging it for the pile.",
+  },
+
+  // ── Public GitHub issues (kalabook/kalabook) · context substrate for RTS ──────
+  // Engineering's slackRtsSearch can surface these directly — no live GitHub call
+  // needed. General-realism substrate (fictional-but-plausible public issues) so a
+  // shark searching e.g. "no available users", "login EU", or "reject button"
+  // finds something, not empty results — not tied to any specific scenario.
+  {
+    channel: "github-issues",
+    tag: "github_issue_log",
+    persona: "marco",
+    text: "GH-23391 — \"No available users found\" booking failure on open slots. Open since Aug '25, High priority + foundation labels, 36 comments and counting, no confirmed root cause. Route new reports here, don't open dupes. https://github.com/kalabook/kalabook/issues/23391",
+    replies: [
+      { persona: "sam", text: "Been trying to repro consistently — leaning toward a race in the availability cache, but it's intermittent. Still open." },
+    ],
+  },
+  {
+    channel: "github-issues",
+    tag: "github_issue_log",
+    persona: "marco",
+    text: "GH-29720 — Google Calendar-side deletes weren't cancelling the Kalabook booking (one-way sync gap). Filed and fixed within 2 days, merged and closed. https://github.com/kalabook/kalabook/issues/29720",
+    replies: [
+      { persona: "marco", text: "Nice fast turnaround on this one. If it resurfaces post-fix, reopen rather than filing new." },
+    ],
+  },
+  {
+    channel: "github-issues",
+    tag: "github_issue_log",
+    persona: "marco",
+    text: "GH-28201 — some EU-region accounts can't log in to the app. 16 comments, still open, looks auth/region-routing related. Worth a look if support volume picks up. https://github.com/kalabook/kalabook/issues/28201",
+  },
+  {
+    channel: "github-issues",
+    tag: "github_issue_log",
+    persona: "sam",
+    text: "GH-10827 — the Reject button in booking-decision emails cancels the booking with no confirmation popup, easy to fire by accident. Still open, small UX fix. https://github.com/kalabook/kalabook/issues/10827",
+  },
+  {
+    channel: "github-issues",
+    tag: "github_issue_log",
+    persona: "sam",
+    text: "GH-28506 — v6.2 regression: Google Meet option was showing the Kalabook video link instead of the actual Meet link. Closed/fixed. https://github.com/kalabook/kalabook/issues/28506",
+  },
+  {
+    channel: "github-issues",
+    tag: "github_issue_log",
+    persona: "marco",
+    text: "GH-28987 — duplicate events created when booking via CalDav (Fastmail tested). Closed/fixed. https://github.com/kalabook/kalabook/issues/28987",
+  },
+  {
+    channel: "github-issues",
+    tag: "github_issue_log",
+    persona: "dana",
+    text: "GH-23227 — \"Team members are now gated\" complaint, reads like a plan/paywall gripe more than a bug. 15 comments. Our call to make, not Eng's. https://github.com/kalabook/kalabook/issues/23227",
+  },
+  {
+    channel: "github-issues",
+    tag: "github_issue_log",
+    persona: "marco",
+    text: "GH-29628 — add-on (priced booking field) charges get dropped for additional seats. Revenue-adjacent — flag to Support/Product if a paying account hits it. https://github.com/kalabook/kalabook/issues/29628",
   },
 
   // ── Distractors · make "found N relevant out of many" credible ──────────────

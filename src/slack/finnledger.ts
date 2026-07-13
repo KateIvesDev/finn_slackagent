@@ -30,8 +30,10 @@ export interface LedgerEntry {
   verdict: Verdict;
   /** One-line summary of the feedback that triggered the debate. */
   feedbackSummary: string;
-  /** approved -> action executed; rejected -> overruled, nothing ran. */
-  decision: "approved" | "rejected";
+  /** approved -> a human OK'd it and the action executed; rejected -> a human
+   *  overruled it, nothing ran; auto -> the panel reached consensus on a
+   *  low-stakes call and Finn handled it without interrupting a human. */
+  decision: "approved" | "rejected" | "auto";
   /** Display name of the human who decided. Canvas markdown doesn't resolve
    *  Slack's "<@U…>" mention syntax the way messages do, so this must already
    *  be a plain name (see resolveDisplayName in finnFlow.ts), not a mention. */
@@ -42,7 +44,7 @@ export interface LedgerEntry {
 }
 
 const LEDGER_HEADER =
-  "# :ocean: Finn — Decision Log\n" +
+  "# :finn: Finn — Decision Log\n" +
   "Every product-feedback call Finn has made in this channel, with the reasoning and the " +
   "action taken. Newest at the bottom.\n";
 
@@ -65,10 +67,12 @@ export function formatEntry(entry: LedgerEntry): string {
   const callLine =
     entry.decision === "approved"
       ? `**Call:** ${v.action.label} · **Approved by** ${entry.decidedBy}${link}`
-      : `**Call:** ${v.action.label} — overruled · **Rejected by** ${entry.decidedBy}${link}`;
+      : entry.decision === "auto"
+        ? `**Call:** ${v.action.label} · **Handled autonomously** (panel consensus, low-stakes)${link}`
+        : `**Call:** ${v.action.label} — overruled · **Rejected by** ${entry.decidedBy}${link}`;
 
   return (
-    `### :ocean: ${date} — ${v.headline}\n` +
+    `### :finn: ${date} — ${v.headline}\n` +
     `**Feedback:** ${entry.feedbackSummary}\n` +
     `${callLine}\n` +
     `${v.rationale}\n` +
@@ -168,13 +172,21 @@ export class WebApiCanvasWriter implements CanvasWriter {
     });
   }
 
-  /** Read the channel's canvas id from conversations.info, if one exists. */
+  /** Read the channel's existing canvas file_id from conversations.info, if
+   *  one exists. The real shape is `properties.tabs` — an array of tab
+   *  objects, one of which has `type: "canvas"` and `data.file_id`. There is
+   *  no `properties.canvas.file_id` field; verified directly against a live
+   *  channel rather than assumed, since that field never existed and this
+   *  method always returning undefined was silently causing a brand new
+   *  canvas to be created on every single approve. */
   private async lookupChannelCanvas(channelId: string): Promise<string | undefined> {
     const info = await this.client.conversations.info({ channel: channelId });
-    const channel = info.channel as
-      | { properties?: { canvas?: { file_id?: string } } }
-      | undefined;
-    return channel?.properties?.canvas?.file_id;
+    const tabs = (
+      info.channel as
+        | { properties?: { tabs?: Array<{ type?: string; data?: { file_id?: string } }> } }
+        | undefined
+    )?.properties?.tabs;
+    return tabs?.find((t) => t.type === 'canvas')?.data?.file_id;
   }
 }
 

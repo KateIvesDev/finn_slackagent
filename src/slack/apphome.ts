@@ -75,7 +75,7 @@ export function feedbackModal(): View {
     type: "modal",
     callback_id: FEEDBACK_MODAL_CALLBACK_ID,
     title: { type: "plain_text", text: "Send Finn feedback" },
-    submit: { type: "plain_text", text: "Send to the sharks" },
+    submit: { type: "plain_text", text: "Send to the panel" },
     close: { type: "plain_text", text: "Cancel" },
     blocks: [
       {

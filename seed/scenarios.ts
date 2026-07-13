@@ -1,16 +1,24 @@
 /**
  * scenarios.ts
  *
- * Seed data for the feedback-debate demo, grounded in Cal.com (open-source
- * scheduling). Each scenario is engineered so that when the persona agents go
- * search Zendesk / Jira / Slack history, the evidence they find FORCES a
- * specific, legible verdict — and the four scenarios deliberately resolve to
- * four DIFFERENT action paths so the demo shows range:
+ * Seed data for the feedback-debate demo, grounded in Kalabook (a fictional
+ * scheduling product). Each scenario is engineered so that when the persona
+ * agents go search Zendesk / Jira / Slack history — and look up account context
+ * and the roadmap — the evidence they find FORCES a specific, legible verdict.
+ * The scenarios resolve to different action paths, and half of them are genuine
+ * value tradeoffs (not dedup checks) so the debate has real stakes:
  *
- *   1. bug-spike        -> jira_create   (escalate: cluster of tickets, nothing tracked)
- *   2. known-issue      -> jira_link     (restraint: already tracked, don't duplicate)
- *   3. feature-request  -> none          (deflect: on the roadmap, reply with ETA)
- *   4. arr-judgment     -> zendesk_create(judgment: same complaint, ARR tips the call)
+ *   1. bug-spike       -> create_jira    (consensus: cluster of tickets, nothing tracked)
+ *   2. known-issue     -> dedup_link     (consensus: already tracked, don't duplicate)
+ *   3. feature-request -> roadmap_reply  (mild: on the roadmap, reply with the ETA)
+ *   4. arr-judgment    -> create_zendesk (FIGHT: same complaint, ARR tips the call)
+ *   5. cheap-fix       -> no_action      (FIGHT: Eng "cheap, do it" vs Product opportunity cost)
+ *   6. sync-override   -> roadmap_reply  (FIGHT: Support volume vs an explicit Product non-goal)
+ *
+ * Scenarios 4–6 are the ones that earn the "debate" framing: the personas land on
+ * different recommendations for genuine value reasons (business stakes, opportunity
+ * cost, strategic non-goals) and the Judge has to actually pick. 1–3 are the fast,
+ * legible consensus cases that make the fights read as fights by contrast.
  *
  * The `expected` field is for YOUR reference (and later, eval assertions) — it is
  * never shown to the agents. The agents must reach these verdicts from evidence.
@@ -35,11 +43,16 @@ export interface SeedZendeskOrg {
   /** Stable id used for idempotent seeding (external_id in Zendesk). */
   externalId: string;
   name: string;
+  /** Custom org field `plan`. */
   plan: 'free' | 'pro' | 'team' | 'enterprise';
-  /** Custom org field — the Support agent reads this to weigh priority. */
+  /** Custom org field `arr_usd` — the Support agent reads this to weigh priority. */
   arrUsd?: number;
-  /** ISO date. Renewal proximity is part of the ARR-judgment argument. */
+  /** Custom org field `renewal_date` (ISO). Renewal proximity drives the ARR flip. */
   renewalDate?: string;
+  /** Custom org field `health`. */
+  health?: 'healthy' | 'watch' | 'at-risk';
+  /** Built-in Zendesk org `notes` — the one-line CSM/renewal signal Support quotes. */
+  note?: string;
 }
 
 export interface SeedZendeskTicket {
@@ -110,31 +123,82 @@ export interface Scenario {
 // ---------------------------------------------------------------------------
 
 // `satisfies` (not `: Record<string, SeedZendeskOrg>`) keeps the literal keys
-// (acme/brightpath/hobby) in the type, so `orgs.acme` is `SeedZendeskOrg`, not
+// (ajax/brightpath/hobby) in the type, so `orgs.ajax` is `SeedZendeskOrg`, not
 // `SeedZendeskOrg | undefined` — a plain Record<string,...> annotation widens
 // to a string index signature, which noUncheckedIndexedAccess then flags.
+// The full account book — mirrors the accountContext ACCOUNTS in
+// src/tools/index.ts so real Zendesk org fields reproduce the tuned scenarios.
+// Every org a ticket requester belongs to must be here (the seeder resolves a
+// requester's org by email domain), which is why Northwind + Lumina appear even
+// though no scenario lists them in `seedOrgs`.
 export const orgs = {
-  acme: {
-    externalId: 'org-acme',
-    name: 'Acme Corp',
+  ajax: {
+    externalId: 'org-ajax',
+    name: 'Ajax Corp',
     plan: 'enterprise',
     arrUsd: 48000,
-    // Set at seed time to ~3 weeks out; hardcoded here for reference.
+    // Set at seed time to ~2 weeks out; hardcoded here for reference.
     renewalDate: '2026-07-24',
+    health: 'at-risk',
+    note: 'Enterprise; renewal approaching; CS flagged health at-risk in the latest account review.',
+  },
+  northwind: {
+    externalId: 'org-northwind',
+    name: 'Northwind Traders',
+    plan: 'enterprise',
+    arrUsd: 180000,
+    renewalDate: '2026-08-31',
+    health: 'at-risk',
+    note: 'Enterprise; large account; health at-risk — watch closely into the Aug renewal.',
   },
   brightpath: {
     externalId: 'org-brightpath',
     name: 'BrightPath Studio',
     plan: 'team',
     arrUsd: 6000,
+    health: 'healthy',
+    note: 'Team plan, healthy account, no renewal pressure.',
+  },
+  lumina: {
+    externalId: 'org-lumina',
+    name: 'Lumina',
+    plan: 'pro',
+    arrUsd: 3000,
+    health: 'healthy',
+    note: 'Pro plan, healthy account.',
+  },
+  meridian: {
+    externalId: 'org-meridian',
+    name: 'Meridian Wellness',
+    plan: 'team',
+    arrUsd: 9000,
+    health: 'healthy',
+    note: 'Team plan, healthy account; heavy recurring-scheduling user.',
   },
   hobby: {
-    externalId: 'org-hobby',
-    name: 'Individual (Free)',
+    externalId: 'org-mayaellis',
+    name: 'Maya Ellis Coaching',
     plan: 'free',
     arrUsd: 0,
+    health: 'healthy',
+    note: 'Free tier, no ARR or renewal at stake.',
   },
 } satisfies Record<string, SeedZendeskOrg>;
+
+/** Every org, for the seeder to upsert up front (tickets resolve their org by
+ *  the requester's email domain, so all orgs must exist first). */
+export const allOrgs: SeedZendeskOrg[] = Object.values(orgs);
+
+/** Map an email domain to its org external_id, so a ticket's requester lands in
+ *  the right org (and inherits its ARR/renewal/health custom fields). */
+export const orgByEmailDomain: Record<string, string> = {
+  'ajax.example': 'org-ajax',
+  'northwind.example': 'org-northwind',
+  'brightpath.example': 'org-brightpath',
+  'lumina.example': 'org-lumina',
+  'mayaellis.example': 'org-mayaellis',
+  'meridian.example': 'org-meridian',
+};
 
 // ---------------------------------------------------------------------------
 // Scenario 1 — BUG SPIKE -> jira_create
@@ -152,7 +216,7 @@ export const bugSpike: Scenario = {
   title: 'Recurring bookings silently dropping from Google Calendar',
   triggerFeedback: {
     text:
-      "New feedback from in-app widget: 'Set up a weekly team sync as a recurring " +
+      "New feedback from BrightPath Studio: 'Set up a weekly team sync as a recurring " +
       "event. The first one showed up on my Google Calendar but none of the repeats " +
       "did. Found out because two of us booked over the same slot. Kind of a big deal.'",
     sourceUser: 'widget@cal-feedback',
@@ -164,7 +228,7 @@ export const bugSpike: Scenario = {
       subject: 'Recurring meetings not syncing to Google Cal',
       description:
         "I create a recurring event type and only the very first occurrence lands " +
-        "in Google Calendar. The rest are confirmed in Cal.com but invisible on my " +
+        "in Google Calendar. The rest are confirmed in Kalabook but invisible on my " +
         "calendar. Started sometime this week.",
       requesterEmail: 'dana@brightpath.example',
       orgExternalId: 'org-brightpath',
@@ -197,7 +261,7 @@ export const bugSpike: Scenario = {
       externalId: 'zd-spike-4',
       subject: 'Google Calendar integration broken?',
       description:
-        "Bookings confirmed in Cal.com but not on my Google Calendar. Disconnected and " +
+        "Bookings confirmed in Kalabook but not on my Google Calendar. Disconnected and " +
         "reconnected the integration, no change. Only seems to be repeat events.",
       requesterEmail: 'sam@lumina.example',
       tags: ['google-calendar', 'integration'],
@@ -207,7 +271,7 @@ export const bugSpike: Scenario = {
       externalId: 'zd-spike-5',
       subject: 'URGENT - team double booking because calendar sync is dropping events',
       description:
-        "This is causing real problems. Recurring bookings are confirmed on Cal.com but " +
+        "This is causing real problems. Recurring bookings are confirmed on Kalabook but " +
         "not written to Google Calendar, so my team keeps booking over each other. Please fix.",
       requesterEmail: 'jordan@northwind.example',
       tags: ['google-calendar', 'recurring', 'urgent'],
@@ -231,8 +295,8 @@ export const bugSpike: Scenario = {
 // Scenario 2 — KNOWN ISSUE -> jira_link  (the RTS dedup moment)
 // The feedback matches a defect that's ALREADY an open Jira issue AND was
 // already discussed in the channel last week. The Engineering agent's Jira
-// search surfaces CAL-1487; the RTS search surfaces the prior Slack thread.
-// Verdict: DO NOT create a duplicate — link this report to CAL-1487, add the
+// search surfaces KALA-1487; the RTS search surfaces the prior Slack thread.
+// Verdict: DO NOT create a duplicate — link this report to KALA-1487, add the
 // customer as affected, comment. This is the highest-impact narrative:
 // "did we already log this?" is the pain everyone recognizes.
 // ---------------------------------------------------------------------------
@@ -242,20 +306,24 @@ export const knownIssue: Scenario = {
   title: 'Outlook bookings showing at the wrong time (already tracked)',
   triggerFeedback: {
     text:
-      "New feedback: 'When my clients on Outlook book me, the meeting shows up an hour " +
-      "off on their side. I'm in US Central. It's on the Cal.com confirmation correctly " +
+      "New feedback from BrightPath Studio: 'When my clients on Outlook book me, the meeting shows up an hour " +
+      "off on their side. I'm in US Central. It's on the Kalabook confirmation correctly " +
       "but wrong in their Outlook invite.'",
     sourceUser: 'widget@cal-feedback',
-    orgExternalId: 'org-acme',
+    // Healthy account on purpose — this is the dedup-restraint scenario. Reporting
+    // from at-risk Ajax would (correctly) trigger a CSM escalation via accountContext
+    // and collapse this into the arr-judgment verdict. See the ZENDESK_CATALOG note
+    // for id 110 in src/tools/index.ts.
+    orgExternalId: 'org-brightpath',
   },
   seedJiraIssues: [
     {
-      externalKey: 'CAL-1487',
+      externalKey: 'KALA-1487',
       summary: 'Office 365 booking invites offset by 1 hour for non-UTC organizers',
       description:
         'Confirmed bug: for organizers in non-UTC timezones, the ICS/invite written to ' +
         'the invitee via the Office 365 integration is offset by one hour (DST boundary ' +
-        'handling). Cal.com-side confirmation is correct; only the pushed invite is wrong. ' +
+        'handling). Kalabook-side confirmation is correct; only the pushed invite is wrong. ' +
         'Repro on US Central and US Eastern.',
       issueType: 'Bug',
       status: 'In Progress',
@@ -268,9 +336,9 @@ export const knownIssue: Scenario = {
       subject: 'Outlook invite one hour off',
       description:
         "Clients booking me on Outlook get an invite thats an hour earlier than the " +
-        "actual time. Cal.com shows the right time. Already reported I think but adding mine.",
-      requesterEmail: 'lee@acme.example',
-      orgExternalId: 'org-acme',
+        "actual time. Kalabook shows the right time. Already reported I think but adding mine.",
+      requesterEmail: 'lee@brightpath.example',
+      orgExternalId: 'org-brightpath',
       tags: ['office365', 'timezone'],
       createdDaysAgo: 6,
     },
@@ -281,24 +349,24 @@ export const knownIssue: Scenario = {
       author: 'Support (Renee)',
       text:
         "Heads up — we've had a couple of reports of Office 365 invites landing an hour " +
-        "off for non-UTC folks. Eng opened CAL-1487, it's in progress. Route new ones there.",
+        "off for non-UTC folks. Eng opened KALA-1487, it's in progress. Route new ones there.",
     },
     {
       daysAgo: 5,
       author: 'Eng (Tobias)',
       text:
-        "CAL-1487 update: root-caused to DST handling in the O365 invite writer. Fix in " +
+        "KALA-1487 update: root-caused to DST handling in the O365 invite writer. Fix in " +
         "review. If more customers hit it, add them to the ticket so we can gauge blast radius.",
     },
   ],
   expected: {
     action: 'dedup_link',
-    linksToJira: 'CAL-1487',
+    linksToJira: 'KALA-1487',
     priority: 'normal',
     rationale:
-      'The complaint matches an already-open, in-progress Jira bug (CAL-1487) AND the ' +
+      'The complaint matches an already-open, in-progress Jira bug (KALA-1487) AND the ' +
       'channel history explicitly says to route new reports there. Creating a new ticket ' +
-      'would be a duplicate. Correct action: link this report to CAL-1487, add the customer ' +
+      'would be a duplicate. Correct action: link this report to KALA-1487, add the customer ' +
       'as affected, and comment for blast-radius tracking. Demonstrates restraint + dedup.',
   },
 };
@@ -317,15 +385,15 @@ export const featureRequest: Scenario = {
   title: 'Waitlist for fully-booked slots (already on the roadmap)',
   triggerFeedback: {
     text:
-      "New feedback: 'Love Cal.com. One thing — when a popular slot is full, people give " +
+      "New feedback from Lumina: 'Love Kalabook. One thing — when a popular slot is full, people give " +
       "up. Could you add a waitlist so they get notified if it frees up? Would save us a " +
       "ton of back-and-forth.'",
     sourceUser: 'widget@cal-feedback',
-    orgExternalId: 'org-brightpath',
+    orgExternalId: 'org-lumina',
   },
   seedJiraIssues: [
     {
-      externalKey: 'CAL-1102',
+      externalKey: 'KALA-1102',
       summary: '[Roadmap] Waitlist with auto-promotion for event types',
       description:
         'Planned enhancement: allow invitees to join a waitlist for fully-booked event ' +
@@ -342,22 +410,22 @@ export const featureRequest: Scenario = {
     action: 'roadmap_reply',
     rationale:
       'This is an enhancement, not a defect. Engineering flags it as working-as-designed; ' +
-      'Product finds it already scoped on the roadmap (CAL-1102, labeled roadmap/q4). ' +
+      'Product finds it already scoped on the roadmap (KALA-1102, labeled roadmap/q4). ' +
       'Creating a new ticket would be noise. Correct action: post a friendly reply naming ' +
-      'the planned timeframe and increment the +1 count on CAL-1102. No ticket created.',
+      'the planned timeframe and increment the +1 count on KALA-1102. No ticket created.',
   },
 };
 
 // ---------------------------------------------------------------------------
 // Scenario 4 — ARR JUDGMENT -> zendesk_create  (the debate that matters)
 // The SAME complaint (embed widget perf) resolves differently depending on WHO
-// is asking. From a free user it's backlog. From Acme (enterprise, $48k ARR,
+// is asking. From a free user it's backlog. From Ajax (enterprise, $48k ARR,
 // renewal in ~3 weeks) it's an escalation. The Support agent pulls the org's
 // plan/ARR/renewal; Engineering argues low-effort-low-value; Product says it's
 // off the core roadmap. The Judge weighs the $ and renewal risk and escalates.
 // This is the scenario that proves the debate isn't theater.
 //
-// Tip for the demo: run this feedback once as Acme, then once as the free org
+// Tip for the demo: run this feedback once as Ajax, then once as the free org
 // (swap triggerFeedback.orgExternalId to 'org-hobby') to show the SAME input
 // producing a DIFFERENT verdict. That side-by-side is the money shot.
 // ---------------------------------------------------------------------------
@@ -367,14 +435,13 @@ export const arrJudgment: Scenario = {
   title: 'Embed widget slow / layout shift — priority depends on the account',
   triggerFeedback: {
     text:
-      "New feedback from Acme Corp: 'Your embed is janky on our marketing site — it loads " +
+      "New feedback from Ajax Corp: 'Your embed is janky on our marketing site — it loads " +
       "slowly and shoves the page around as it renders (layout shift). It's hurting our " +
-      "conversion and honestly it's a bad look on our homepage. We're evaluating this ahead " +
-      "of renewal.'",
-    sourceUser: 'success@acme.example',
-    orgExternalId: 'org-acme',
+      "conversion and honestly it's a bad look on our homepage.'",
+    sourceUser: 'success@ajax.example',
+    orgExternalId: 'org-ajax',
   },
-  seedOrgs: [orgs.acme, orgs.hobby],
+  seedOrgs: [orgs.ajax, orgs.hobby],
   seedZendeskTickets: [
     {
       externalId: 'zd-arr-1',
@@ -382,15 +449,15 @@ export const arrJudgment: Scenario = {
       description:
         "The inline embed pushes our page content around as it loads and is slow on " +
         "mobile. On our homepage above the fold. Needs to be smoother.",
-      requesterEmail: 'success@acme.example',
-      orgExternalId: 'org-acme',
+      requesterEmail: 'success@ajax.example',
+      orgExternalId: 'org-ajax',
       tags: ['embed', 'performance'],
       createdDaysAgo: 1,
     },
   ],
   seedJiraIssues: [
     {
-      externalKey: 'CAL-980',
+      externalKey: 'KALA-980',
       summary: 'Embed: reduce layout shift (CLS) and improve first-load performance',
       description:
         'Known long-tail perf item for the inline embed. Reserve space to avoid CLS, defer ' +
@@ -405,12 +472,157 @@ export const arrJudgment: Scenario = {
     priority: 'high',
     rationale:
       'Engineering correctly reads this as low-severity, already-backlogged perf work ' +
-      '(CAL-980) — from a free user, the right call is "backlog, no action." But the Support ' +
-      'agent surfaces that the reporter is Acme: enterprise, $48k ARR, renewal in ~3 weeks, ' +
-      'explicitly tying the complaint to the renewal decision. The Judge weighs churn risk ' +
+      '(KALA-980) — from a free user, the right call is "backlog, no action." But the Support ' +
+      'agent surfaces that the reporter is Ajax: enterprise, $48k ARR, renewal ~2 weeks out, ' +
+      'health at-risk (Zendesk) — and #renewals shows the exec tied the embed to the renewal ' +
+      'at the QBR (Slack). Note the customer feedback itself does NOT mention the renewal; ' +
+      'Support has to connect the account facts to the internal churn signal. The Judge weighs ' +
+      'churn risk ' +
       'over engineering-effort math and escalates: create a high-priority Zendesk ticket ' +
-      'routed to the account/CSM, and link (not re-create) CAL-980 for the eng side. The ' +
+      'routed to the account/CSM, and link (not re-create) KALA-980 for the eng side. The ' +
       'ARR context flips the verdict — that is the debate earning its keep.',
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Scenario 5 — CHEAP FIX, OFF-THEME -> no_action  (the mirror of the ARR call)
+// A tiny, genuinely-cheap UI polish from a free-tier user, nothing tracked.
+// Engineering reads it as a trivial ~1-hour fix and leans "sure, just file it."
+// Product argues the opposite: it's real but cosmetic, off the committed Q3
+// theme, and one dev-hour here is a dev-hour off two-way sync — with no volume
+// or account value to justify jumping the queue. The Judge sides with Product:
+// cheapness is not the same as worth. This is the deliberate counterpart to the
+// ARR scenario — there, low severity gets escalated because of business stakes;
+// here, a low-cost fix is declined because of opportunity cost. Same "low
+// signal" input, opposite verdicts, both decided on a real axis.
+// ---------------------------------------------------------------------------
+
+export const cheapFixOffTheme: Scenario = {
+  id: 'cheap-fix',
+  title: '"Add to calendar" button hard to find on mobile (cheap, but off-theme)',
+  triggerFeedback: {
+    text:
+      "New feedback from Maya Ellis Coaching: 'The \"Add to calendar\" link on the booking " +
+      "confirmation screen is tiny and greyed out — on my phone I almost missed it. " +
+      "Could it be a proper button?'",
+    sourceUser: 'widget@cal-feedback',
+    orgExternalId: 'org-hobby',
+  },
+  seedOrgs: [orgs.hobby],
+  seedZendeskTickets: [
+    {
+      externalId: 'zd-cheap-1',
+      subject: 'Add to calendar link easy to miss',
+      description:
+        "Minor thing — the add-to-calendar link after booking is small and low-contrast. " +
+        "Took me a second to spot it on mobile. Would be nicer as a button.",
+      requesterEmail: 'maya@mayaellis.example',
+      orgExternalId: 'org-mayaellis',
+      tags: ['ui', 'mobile'],
+      createdDaysAgo: 9,
+    },
+  ],
+  // Intentionally NO seedJiraIssues — it's untracked, so this is NOT a dedup.
+  // The debate is purely about whether a cheap, low-signal fix is worth doing.
+  expected: {
+    action: 'no_action',
+    rationale:
+      'A real but cosmetic UI polish from a single free-tier reporter, nothing tracked. ' +
+      'Engineering reads it as a trivial ~1-hour fix and leans toward just filing it; ' +
+      'Product argues opportunity cost — it is off the committed Q3 theme (two-way sync), ' +
+      'there is no volume and no account value, and a dev-hour spent here is a dev-hour not ' +
+      'spent on the quarter. The Judge weights opportunity cost over cheapness: no ticket ' +
+      'now, backlog it. The deliberate mirror of the ARR scenario — low signal, declined on ' +
+      'strategy rather than escalated on stakes.',
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Scenario 6 — OFF-STRATEGY DEMAND -> roadmap_reply  (Support volume vs an
+// explicit Product non-goal). Real, recurring pain (stale availability) but the
+// SPECIFIC ask — a user-configurable sync interval — is something the team has
+// explicitly decided NOT to build, because the proper fix (real-time two-way
+// sync, KALA-1495) is already in progress this quarter. Support argues the pain
+// is real and multi-customer; Product argues the requested mechanism is a
+// declined non-goal and a band-aid. The Judge honors the need without building
+// the declined feature: reply pointing to the two-way-sync work, no override.
+// Distinct from Scenario 3 (waitlist = "you asked for X, X is planned, here's
+// the ETA"); here it's "we're declining X, but we're already solving your real
+// problem a different way." The nuance roadmapLookup's non-goals make possible.
+// ---------------------------------------------------------------------------
+
+export const syncOverrideDemand: Scenario = {
+  id: 'sync-override',
+  title: 'Request for a user-set calendar sync interval (declined non-goal, real fix in flight)',
+  triggerFeedback: {
+    text:
+      "New feedback from Meridian Wellness: 'Availability is often stale — someone booked a slot my calendar " +
+      "already showed as taken because it hadn't refreshed yet. Can you let me set the " +
+      "sync interval myself? I'd put mine at 1 minute.'",
+    sourceUser: 'widget@cal-feedback',
+    orgExternalId: 'org-meridian',
+  },
+  seedOrgs: [orgs.meridian],
+  seedZendeskTickets: [
+    {
+      externalId: 'zd-sync-1',
+      subject: 'Availability slow to update after a booking',
+      description:
+        "My calendar keeps showing slots as free for a few minutes after they're booked, " +
+        "so people double-book. Can the refresh be faster?",
+      requesterEmail: 'nina@brightpath.example',
+      orgExternalId: 'org-brightpath',
+      tags: ['availability', 'sync'],
+      createdDaysAgo: 4,
+    },
+    {
+      externalId: 'zd-sync-2',
+      subject: 'Stale availability causing double bookings',
+      description:
+        "There's a lag before the booking page reflects a new booking. We've had a couple " +
+        "of clients grab a slot that was actually taken. Any way to tighten the sync?",
+      // Healthy account, not at-risk Northwind — keeps this scenario a roadmap_reply
+      // rather than a churn escalation. See the ZENDESK_CATALOG id 141 note in
+      // src/tools/index.ts.
+      requesterEmail: 'ops@lumina.example',
+      tags: ['availability', 'double-booking'],
+      createdDaysAgo: 6,
+    },
+  ],
+  seedJiraIssues: [
+    {
+      externalKey: 'KALA-1495',
+      summary: 'Real-time two-way calendar sync (replaces 5-min polling)',
+      description:
+        'Committed Q3 work: move from the 5-minute polling model to real-time two-way sync, ' +
+        'so availability reflects bookings immediately. This is the sanctioned fix for ' +
+        'staleness/sync-lag complaints. Per-user sync-interval overrides were explicitly ' +
+        'declined as a band-aid, superseded by this work.',
+      issueType: 'Epic',
+      status: 'In Progress',
+      labels: ['roadmap', 'q3', 'sync'],
+    },
+  ],
+  seedSlackHistory: [
+    {
+      daysAgo: 12,
+      author: 'Product (Dana)',
+      text:
+        "Decision: we are NOT shipping per-user sync-interval overrides. Superseded by the " +
+        "Q3 two-way sync work (KALA-1495). Route these requests to the roadmap thread.",
+    },
+  ],
+  expected: {
+    action: 'roadmap_reply',
+    linksToJira: 'KALA-1495',
+    rationale:
+      'The pain is real and multi-customer (stale availability → double-bookings), so Support ' +
+      'rightly pushes to act. But the specific request — a user-configurable sync interval — ' +
+      'is an explicit product non-goal: the proper fix, real-time two-way sync (KALA-1495), ' +
+      'is already in progress this quarter, and per-user overrides were deliberately declined ' +
+      'as a band-aid. Correct action: reply to the customer naming the two-way-sync work and ' +
+      "its timeframe, log demand against KALA-1495 — don't build the override. Support is " +
+      'heard (the reply addresses their pain); Product holds the line on the declined mechanism.',
   },
 };
 
@@ -479,7 +691,14 @@ export const distractorTickets: SeedZendeskTicket[] = [
 // Export the ordered set the demo runs through.
 // ---------------------------------------------------------------------------
 
-export const scenarios: Scenario[] = [bugSpike, knownIssue, featureRequest, arrJudgment];
+export const scenarios: Scenario[] = [
+  bugSpike,
+  knownIssue,
+  featureRequest,
+  arrJudgment,
+  cheapFixOffTheme,
+  syncOverrideDemand,
+];
 
 /** Look up a scenario by id (used by the local runner + seed/teardown CLI args). */
 export function getScenario(id: string): Scenario | undefined {

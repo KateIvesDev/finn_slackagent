@@ -15,12 +15,21 @@ import {
   publishFinnHome,
   handleRunScenario,
   handleFeedbackSubmit,
+  handleSummarizeActivity,
+  handleAssistantHelp,
 } from './finnFlow.js';
+import { runFinnFlowStreamed } from './finnFlowStreamed.js';
 
 export async function runTask(client: WebClient, store: VerdictStore, task: WorkTask): Promise<void> {
   switch (task.type) {
     case 'run_finn_flow':
       return runFinnFlow(client, store, task.feedback);
+    case 'assistant_message':
+      return runFinnFlowStreamed(client, store, task.feedback);
+    case 'summarize_activity':
+      return handleSummarizeActivity(client, task.replyChannel, task.threadTs, task.queryChannel);
+    case 'assistant_help':
+      return handleAssistantHelp(client, task.replyChannel, task.threadTs);
     case 'approve':
       return handleApprove(client, store, task.feedbackId, task.userId);
     case 'reject':

@@ -77,7 +77,7 @@ Slack app config if you want to fall back to local dev (`npm run dev`).
 |---|---|
 | `aws_apigatewayv2_api` + route + stage | One HTTP endpoint Slack posts events/interactions to |
 | `aws_lambda_function.receiver` | Verifies the request, acks fast, hands off to the worker |
-| `aws_lambda_function.worker` | Runs the actual shark debate + judge + executor, no time limit |
+| `aws_lambda_function.worker` | Runs the actual  debate + judge + executor, no time limit |
 | `aws_dynamodb_table.verdicts` | Where a verdict waits between posting and a human clicking Approve/Reject — the receiver/worker split (and even separate invocations of the worker) share no memory, unlike Socket Mode's single process |
 | IAM roles (2) | Least-privilege: receiver can only invoke the worker; worker can only call Bedrock + read/write the verdict table |
 

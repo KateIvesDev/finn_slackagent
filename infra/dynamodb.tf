@@ -18,3 +18,30 @@ resource "aws_dynamodb_table" "verdicts" {
     enabled        = true
   }
 }
+
+# The decision ledger's queryable mirror — what "what's been decided recently?"
+# reads. On Lambda the worker that records a decision and the one that answers
+# the summary are separate invocations, so (like the verdicts table) the log
+# can't live in memory. Keyed (channel HASH, at RANGE) so a channel's recent
+# decisions are a single Query. See src/slack/decisionLog.ts.
+resource "aws_dynamodb_table" "decisions" {
+  name         = "${var.project}-decisions"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "channel"
+  range_key    = "at"
+
+  attribute {
+    name = "channel"
+    type = "S"
+  }
+
+  attribute {
+    name = "at"
+    type = "N"
+  }
+
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
+}

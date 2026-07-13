@@ -17,6 +17,8 @@ const outRoot = path.join(root, 'infra', 'build');
 const targets = [
   { name: 'receiver', entry: 'src/lambda/receiver.ts' },
   { name: 'worker', entry: 'src/lambda/worker.ts' },
+  // The Zendesk MCP server (hand-rolled JSON-RPC), behind its own Function URL.
+  { name: 'zendesk-mcp', entry: 'src/lambda/zendeskMcp.ts' },
 ];
 
 rmSync(outRoot, { recursive: true, force: true });

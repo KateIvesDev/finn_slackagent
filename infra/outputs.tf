@@ -11,6 +11,11 @@ output "worker_function_name" {
   value = aws_lambda_function.worker.function_name
 }
 
+output "zendesk_mcp_url" {
+  description = "API Gateway route for the Zendesk MCP Lambda (the worker is wired to it automatically; shown for debugging/curl)."
+  value       = "${aws_apigatewayv2_api.this.api_endpoint}/zendesk-mcp"
+}
+
 output "verdict_table_name" {
   value = aws_dynamodb_table.verdicts.name
 }

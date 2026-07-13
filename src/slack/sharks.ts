@@ -21,9 +21,9 @@ export interface SharkIdentity {
 }
 
 export const SHARKS: Record<SharkRole, SharkIdentity> = {
-  support: { name: "Support · Shark", anchor: ":sos:", iconEmoji: ":sos:" },
-  engineering: { name: "Engineering · Shark", anchor: ":hammer_and_wrench:", iconEmoji: ":hammer_and_wrench:" },
-  product: { name: "Product · Shark", anchor: ":compass:", iconEmoji: ":compass:" },
+  support: { name: "Support", anchor: ":sos:", iconEmoji: ":sos:" },
+  engineering: { name: "Engineering", anchor: ":hammer_and_wrench:", iconEmoji: ":hammer_and_wrench:" },
+  product: { name: "Product", anchor: ":compass:", iconEmoji: ":compass:" },
 };
 
 export interface SharkArgument {
@@ -76,6 +76,10 @@ export async function postShark(
     text: `${id.name}: ${arg.claim}`, // notification fallback
     blocks: buildSharkMessage(role, arg),
     username: id.name,
+    // A permalink in an evidence bullet shouldn't unfurl into a big message
+    // preview under the card — keep the panel compact.
+    unfurl_links: false,
+    unfurl_media: false,
     ...(id.iconUrl ? { icon_url: id.iconUrl } : { icon_emoji: id.iconEmoji }),
   });
   return res.ts as string;

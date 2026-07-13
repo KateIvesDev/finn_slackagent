@@ -24,7 +24,7 @@ variable "slack_bot_token" {
 }
 
 variable "slack_mcp_user_token" {
-  description = "User token (xoxp-...) for mcp.slack.com — the sharks' Slack search tool. MCP's Real-time Search API requires a user token with search:read.* scopes; the bot token can't do full-text search."
+  description = "User token (xoxp-...) for mcp.slack.com — the panelists' Slack search tool. MCP's Real-time Search API requires a user token with search:read.* scopes; the bot token can't do full-text search."
   type        = string
   sensitive   = true
   default     = ""
@@ -40,6 +40,12 @@ variable "slack_signing_secret" {
 variable "slack_feedback_channel" {
   description = "Channel ID Finn listens on / posts scenario runs into (e.g. C0BEURL7803)."
   type        = string
+}
+
+variable "slack_product_owner_group_id" {
+  description = "Slack user group (subteam) ID (starts with S) @-mentioned when a verdict needs human approval. Leave blank to skip the mention."
+  type        = string
+  default     = ""
 }
 
 # --- Bedrock ------------------------------------------------------------------
@@ -60,6 +66,13 @@ variable "slack_mcp_url" {
   description = "Slack MCP server URL. Leave blank if not wired up yet."
   type        = string
   default     = ""
+}
+
+variable "zendesk_mcp_token" {
+  description = "Shared bearer secret gating the Zendesk MCP Lambda's Function URL (which is public). Generate any strong random string; the worker sends it, the MCP Lambda checks it."
+  type        = string
+  default     = ""
+  sensitive   = true
 }
 
 # --- Zendesk / Jira sandbox creds (only needed once tools/index.ts calls real APIs) ---
@@ -97,5 +110,5 @@ variable "jira_project_key" {
 variable "bedrock_stub" {
   description = "Set to \"false\" to make real Bedrock Converse calls instead of the canned stub."
   type        = string
-  default     = "true"
+  default     = "false"
 }

@@ -28,6 +28,11 @@ const schema = z.object({
   SLACK_APP_TOKEN: z.string().optional(),
   SLACK_SIGNING_SECRET: z.string().optional(),
   SLACK_FEEDBACK_CHANNEL: z.string().optional(),
+  // Usergroup ID (starts with "S…") @-mentioned on the verdict card so it
+  // reaches a PM even if they've muted the feedback channel. Find it via
+  // Slack admin → User Groups, or the usergroups.list API. Optional — the
+  // card just skips the mention when unset.
+  SLACK_PRODUCT_OWNER_GROUP_ID: z.string().optional(),
 
   // AWS / Bedrock
   AWS_REGION: z.string().default('us-east-1'),
@@ -35,6 +40,10 @@ const schema = z.object({
 
   // MCP
   ZENDESK_MCP_URL: optionalUrl,
+  // Shared bearer secret for the deployed Zendesk MCP Lambda (Function URL is
+  // public, so this gates access to the Zendesk creds behind it). Optional —
+  // unset locally where the MCP server runs on localhost.
+  ZENDESK_MCP_TOKEN: z.string().optional(),
   SLACK_MCP_URL: optionalUrl,
   // User token (xoxp-...), NOT the bot token — mcp.slack.com's Real-time
   // Search API requires a user token with search:read.* scopes; see

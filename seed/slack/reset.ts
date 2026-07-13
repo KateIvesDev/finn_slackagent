@@ -16,11 +16,11 @@ import {
 //            seed.ts) using the manifest, then delete the manifest itself. Uses the
 //            seed bot's own token/client — a bot can only delete messages it posted.
 //
-//   --stage  Wipe the LIVE DEBATE STAGE (the feedback channel where Finn + the sharks
+//   --stage  Wipe the LIVE DEBATE STAGE (the feedback channel where Finn + the personas
 //            post at demo time). That content is NOT in the seed manifest — Finn and
-//            the sharks generate it live — so this mode scans recent channel history
+//            the personas generate it live — so this mode scans recent channel history
 //            instead, using FINN's own token (SLACK_BOT_TOKEN), because Slack only
-//            lets a bot delete messages posted by its own app, even when the shark
+//            lets a bot delete messages posted by its own app, even when the persona
 //            nameplates override the display name/icon via chat.write.customize.
 //
 // Run either or both:  npx tsx seed/slack/reset.ts --all --stage
@@ -77,17 +77,15 @@ async function resetStage(): Promise<void> {
       if (!ts) continue;
 
       if (msg.bot_id === finnBotId) {
-        await del(channelId, ts);
-        deleted++;
+        if (await del(channelId, ts, finn)) deleted++;
       }
 
-      // Walk replies too — sharks post threaded under Finn's opener.
+      // Walk replies too — personas post threaded under Finn's opener.
       if (msg.reply_count && msg.reply_count > 0) {
         const thread = await finn.conversations.replies({ channel: channelId, ts, limit: 200 });
         for (const reply of thread.messages ?? []) {
           if (reply.ts && reply.ts !== ts && reply.bot_id === finnBotId) {
-            await del(channelId, reply.ts);
-            deleted++;
+            if (await del(channelId, reply.ts, finn)) deleted++;
           }
         }
         await sleep(150);

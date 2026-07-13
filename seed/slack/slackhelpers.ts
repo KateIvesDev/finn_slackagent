@@ -1,6 +1,10 @@
+import "dotenv/config";
 import { WebClient } from "@slack/web-api";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
  
 // ── Client ───────────────────────────────────────────────────────────────────
 // Needs a BOT token (xoxb-). The bot deletes its *own* messages in reset.ts, so the
@@ -12,7 +16,7 @@ import path from "node:path";
 
 const token = process.env.SLACK_SEED_BOT_TOKEN;
 if (!token) {
-  throw new Error("Set SLACK_BOT_TOKEN (xoxb-...) in your environment before running.");
+  throw new Error("Set SLACK_SEED_BOT_TOKEN (xoxb-...) in your environment before running.");
 }
 
 export const client = new WebClient(token, { retryConfig: { retries: 5 } });
@@ -87,9 +91,14 @@ export async function ensureChannel(
 }
 
 // ── Posting ───────────────────────────────────────────────────────────────────
+// Mirrors the iconUrl/iconEmoji fallback in src/slack/sharks.ts: prefer a hosted
+// avatar image when set, fall back to an emoji otherwise. icon_url must point at a
+// raster image (PNG/JPG) — Slack's message-icon pipeline does not reliably render
+// image/svg+xml, even though the URL itself resolves fine.
 export interface Persona {
   username: string;
-  icon: string;
+  icon_url?: string;
+  icon_emoji?: string;
 }
 
 /** Post a message as a persona. Returns the ts. Paced to stay under rate limits. */
@@ -103,7 +112,7 @@ export async function post(
     channel,
     text,
     username: persona.username,
-    icon_emoji: persona.icon,
+    ...(persona.icon_url ? { icon_url: persona.icon_url } : { icon_emoji: persona.icon_emoji }),
     thread_ts: threadTs,
   });
   await sleep(PACE_MS);
@@ -149,13 +158,25 @@ export function deleteManifest(): void {
 }
 
 // ── Deletion ──────────────────────────────────────────────────────────────────
-/** Delete one message, swallowing the benign "already gone / can't delete" cases. */
-export async function del(channel: string, ts: string): Promise<void> {
+/**
+ * Delete one message, swallowing the benign "already gone / can't delete" cases.
+ * Defaults to the seed bot's client; pass `useClient` when deleting messages posted
+ * by a different bot identity (e.g. Finn's), since Slack only lets an app delete its
+ * own messages. Returns whether a delete actually happened, so callers can count
+ * real successes instead of attempts.
+ */
+export async function del(
+  channel: string,
+  ts: string,
+  useClient: WebClient = client,
+): Promise<boolean> {
   try {
-    await client.chat.delete({ channel, ts });
+    await useClient.chat.delete({ channel, ts });
     await sleep(PACE_MS);
+    return true;
   } catch (err) {
     if (!isSlackError(err, "message_not_found", "cant_delete_message")) throw err;
+    return false;
   }
 }
 
